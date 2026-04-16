@@ -1,0 +1,318 @@
+:root {
+  --bg: #c4a484;
+  --card: #fffdd0;
+  --ink: #2a2218;
+  --muted: #5c4f3f;
+  --accent: #6b3f2a;
+  --card-radius: 22px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  padding: 1.25rem clamp(1rem, 4vw, 2.5rem) 2.5rem;
+}
+
+.page {
+  max-width: min(100%, 920px);
+  margin: 0 auto;
+}
+
+header h1 {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-size: clamp(1.5rem, 3.2vw, 2rem);
+}
+
+header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+  max-width: 40em;
+}
+
+.scene {
+  perspective: 1400px;
+  margin: 2rem auto 2.25rem;
+}
+
+.card {
+  width: min(100%, 640px);
+  margin: 0 auto;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.card-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  width: 100%;
+  min-height: clamp(380px, 52vh, 520px);
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+  border-radius: var(--card-radius);
+}
+
+.card-inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  /* Grid stack so row height follows content; absolute inset kept the inner at min-height only. */
+  grid-area: 1 / 1;
+  width: 100%;
+  align-self: stretch;
+  backface-visibility: hidden;
+  border-radius: var(--card-radius);
+  background: #fffdd0;
+  box-shadow: 0 22px 48px rgba(42, 34, 24, 0.2);
+  padding: clamp(1.5rem, 3vw, 2rem) clamp(1.35rem, 3vw, 1.85rem) clamp(1.6rem, 3vw, 2.1rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 2vw, 1.1rem);
+  border: 1px solid rgba(42, 34, 24, 0.08);
+  overflow: visible;
+}
+
+.card-back {
+  transform: rotateY(180deg);
+  cursor: pointer;
+}
+
+/* Tan page color — matches how many words you marked known */
+.known-counter {
+  position: absolute;
+  top: clamp(0.65rem, 2vw, 1rem);
+  right: clamp(0.75rem, 2vw, 1.1rem);
+  font-size: clamp(1rem, 2.4vw, 1.25rem);
+  font-weight: 600;
+  color: var(--bg);
+  letter-spacing: 0.03em;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.card-front .hint,
+.card-back .hint {
+  text-align: center;
+  width: 100%;
+}
+
+.hint {
+  margin: 0;
+  font-size: clamp(0.85rem, 1.8vw, 0.98rem);
+  color: var(--muted);
+}
+
+/* Centers pronunciation + headword vertically between hint and button */
+.card-hero {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  /* Do not use min-height: 0 here — it lets the flex item shrink and clips Nastaliq ascenders/descenders */
+  overflow: visible;
+  gap: clamp(0.4rem, 1.8vw, 0.85rem);
+}
+
+.card-hero .pronunciation {
+  text-align: center;
+  width: 100%;
+}
+
+.pronunciation {
+  font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.word-line {
+  margin: 0;
+  font-size: clamp(3.35rem, 11vw, 5.1rem);
+  font-weight: 600;
+  line-height: 1.12;
+  cursor: text;
+  user-select: none;
+  text-align: center;
+  width: 100%;
+  min-height: clamp(4.25rem, 19vw, 5.75rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.word-line.devanagari {
+  font-family: "Noto Sans Devanagari", "Noto Sans", system-ui, sans-serif;
+}
+
+.word-line.urdu {
+  font-family: "Noto Nastaliq Urdu", serif;
+  direction: rtl;
+  line-height: 2.1;
+  padding: 0.4em 0.15em 0.7em;
+  overflow: visible;
+  min-height: clamp(5.5rem, 24vw, 8rem);
+}
+
+.word-line.roman {
+  font-family: "DM Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+  border-radius: 999px;
+  border: 1px solid rgba(107, 63, 42, 0.35);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--accent);
+  padding: clamp(0.6rem, 1.5vw, 0.75rem) clamp(1rem, 2.5vw, 1.35rem);
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.back-block h2 {
+  margin: 0 0 0.4rem;
+  font-size: clamp(0.9rem, 2vw, 1.02rem);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.back-block p {
+  margin: 0;
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
+  line-height: 1.5;
+}
+
+.empty-state {
+  margin: 0 auto;
+  text-align: center;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  max-width: 36em;
+}
+
+.quiz-strip {
+  width: min(100%, 640px);
+  margin: 0 auto;
+  padding-top: 1.35rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid rgba(42, 34, 24, 0.14);
+}
+
+.quiz-lead {
+  margin: 0 0 0.85rem;
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  color: var(--ink);
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.quiz-inline-btn {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.quiz-strip .pronunciation {
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+}
+
+.quiz-strip .word-line {
+  font-size: clamp(1.85rem, 5.5vw, 2.75rem);
+  line-height: 1.45;
+  min-height: clamp(3rem, 11vw, 4rem);
+  margin: 0.35rem 0 1.5rem;
+  padding: 0.15rem 0 0.65rem;
+  overflow: visible;
+}
+
+/* Nastaliq extends below the line box; extra room so glyphs clear the answer field */
+.quiz-strip .word-line.urdu {
+  line-height: 2.1;
+  min-height: clamp(4.25rem, 17vw, 6.25rem);
+  margin-bottom: clamp(1.35rem, 4vw, 2rem);
+  padding: 0.35em 0 0.85em;
+  overflow: visible;
+}
+
+.quiz-strip .quiz-row {
+  margin-top: 0.25rem;
+}
+
+.quiz-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.quiz-row input {
+  flex: 1 1 200px;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(42, 34, 24, 0.22);
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  background: rgba(255, 254, 245, 0.92);
+}
+
+.status {
+  margin: 0.35rem 0 0;
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  color: var(--muted);
+}
+
+.status.ok {
+  color: #1f5a32;
+}
+
+.status.bad {
+  color: #7a2b1f;
+}
+
+.error-banner {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(122, 43, 31, 0.12);
+  color: #4a1f18;
+  border: 1px solid rgba(122, 43, 31, 0.25);
+}
