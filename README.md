@@ -120,7 +120,9 @@ In the Render service: **Settings → Custom Domains** → add your domain and f
 
 ### Troubleshooting
 
-- **Build fails:** open **Logs** in Render; confirm the Docker build completes locally with `docker build .` if needed.
+- **Blueprint sync says “deploy failed”:** open the service in Render → **Events** or **Logs** and read the failed deploy line (build vs health check).
+- **Build fails / exit 137:** the C++ Docker build can run out of memory on Free. This repo skips tests in Docker (`BUILD_TESTING=OFF`) and builds only `hindiurdu_server`. Push the latest commit and **Manual Deploy → Clear build cache & deploy**.
+- **Service already exists in a bad state:** delete the failed `hindiurdu-word-of-day` service in the dashboard, then **New → Blueprint** again (or **Manual Deploy** on the existing service after pushing fixes).
 - **Health check fails:** ensure `/api/health` returns `{"ok":true}`; check runtime logs for `Failed to load words` or `Failed to open database`.
 - **Slow first load:** normal on Free after idle; use **Retry** or upgrade to Starter for always-on.
 

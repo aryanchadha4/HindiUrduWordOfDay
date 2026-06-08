@@ -4,6 +4,8 @@ project(hindiurdu_backend CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_TESTING "Build unit tests (requires Catch2)" ON)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -16,13 +18,17 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/nlohmann/json.git
   GIT_TAG v3.11.3
 )
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG v3.5.4
-)
 
-FetchContent_MakeAvailable(httplib json Catch2)
+FetchContent_MakeAvailable(httplib json)
+
+if(BUILD_TESTING)
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.4
+  )
+  FetchContent_MakeAvailable(Catch2)
+endif()
 
 find_package(SQLite3 REQUIRED)
 
@@ -38,15 +44,20 @@ target_include_directories(hindiurdu_server PRIVATE
 )
 target_link_libraries(hindiurdu_server PRIVATE nlohmann_json::nlohmann_json SQLite::SQLite3)
 
-add_executable(fuzzy_tests
-  tests/fuzzy_tests.cpp
-  src/fuzzy.cpp
-)
-target_include_directories(fuzzy_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(fuzzy_tests PRIVATE Catch2::Catch2WithMain)
-
 add_executable(merge_word_catalog tools/merge_word_catalog.cpp)
 target_link_libraries(merge_word_catalog PRIVATE nlohmann_json::nlohmann_json)
 
-include(CTest)
-add_test(NAME fuzzy_tests COMMAND fuzzy_tests)
+add_executable(append_catalog_tsv tools/append_catalog_tsv.cpp)
+target_link_libraries(append_catalog_tsv PRIVATE nlohmann_json::nlohmann_json)
+
+if(BUILD_TESTING)
+  add_executable(fuzzy_tests
+    tests/fuzzy_tests.cpp
+    src/fuzzy.cpp
+  )
+  target_include_directories(fuzzy_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  target_link_libraries(fuzzy_tests PRIVATE Catch2::Catch2WithMain)
+
+  include(CTest)
+  add_test(NAME fuzzy_tests COMMAND fuzzy_tests)
+endif()

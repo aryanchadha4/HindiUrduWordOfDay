@@ -1,13 +1,13 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# Connect this repo in the Render dashboard: New → Blueprint → select repository.
 services:
   - type: web
     name: hindiurdu-word-of-day
     runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
     region: oregon
     healthCheckPath: /api/health
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: DATA_DIR
         value: /data
