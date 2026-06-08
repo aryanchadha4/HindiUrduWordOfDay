@@ -16,17 +16,12 @@ if [ ! -w "${DATA_DIR}" ]; then
 fi
 
 words_json_ok() {
-  python3 -c "
-import json, sys
-path = sys.argv[1]
-try:
-    with open(path, encoding='utf-8') as f:
-        data = json.load(f)
-    if not isinstance(data, list) or len(data) == 0:
-        sys.exit(1)
-except Exception:
-    sys.exit(1)
-" "$1"
+  # Shell-only check: non-empty file that looks like a JSON array (no Python in runtime image).
+  [ -f "$1" ] && [ -s "$1" ] || return 1
+  case "$(sed 's/^[[:space:]]*//' "$1" | head -c 1)" in
+    '[') return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 repair_words_json() {
