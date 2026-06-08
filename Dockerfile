@@ -13,7 +13,7 @@ WORKDIR /app/backend
 COPY backend/ ./
 # Production image: skip Catch2/tests and limit parallelism for small build VMs (e.g. Render).
 ENV CMAKE_BUILD_PARALLEL_LEVEL=2
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBUILD_TOOLS=OFF \
     && cmake --build build --target hindiurdu_server
 
 FROM debian:bookworm-slim

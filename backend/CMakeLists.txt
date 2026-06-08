@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_TESTING "Build unit tests (requires Catch2)" ON)
+option(BUILD_TOOLS "Build catalog maintenance CLI tools" ON)
 
 include(FetchContent)
 
@@ -44,11 +45,13 @@ target_include_directories(hindiurdu_server PRIVATE
 )
 target_link_libraries(hindiurdu_server PRIVATE nlohmann_json::nlohmann_json SQLite::SQLite3)
 
-add_executable(merge_word_catalog tools/merge_word_catalog.cpp)
-target_link_libraries(merge_word_catalog PRIVATE nlohmann_json::nlohmann_json)
+if(BUILD_TOOLS)
+  add_executable(merge_word_catalog tools/merge_word_catalog.cpp)
+  target_link_libraries(merge_word_catalog PRIVATE nlohmann_json::nlohmann_json)
 
-add_executable(append_catalog_tsv tools/append_catalog_tsv.cpp)
-target_link_libraries(append_catalog_tsv PRIVATE nlohmann_json::nlohmann_json)
+  add_executable(append_catalog_tsv tools/append_catalog_tsv.cpp)
+  target_link_libraries(append_catalog_tsv PRIVATE nlohmann_json::nlohmann_json)
+endif()
 
 if(BUILD_TESTING)
   add_executable(fuzzy_tests
