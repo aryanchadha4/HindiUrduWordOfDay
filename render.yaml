@@ -1,0 +1,24 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Connect this repo in the Render dashboard: New → Blueprint → select repository.
+services:
+  - type: web
+    name: hindiurdu-word-of-day
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: WORDS_JSON
+        value: /data/words.json
+      - key: USER_DB
+        value: /data/users.db
+      - key: STATIC_DIR
+        value: /app/frontend/dist
+    # Persistent disk (Starter plan or higher). Uncomment after upgrading from Free:
+    # disk:
+    #   name: hindiurdu-data
+    #   mountPath: /data
+    #   sizeGB: 1
