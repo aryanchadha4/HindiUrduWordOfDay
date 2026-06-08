@@ -8,6 +8,8 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -66,11 +68,53 @@ nlohmann::json word_to_json_quiz_prompt(const WordEntry& w) {
   return j;
 }
 
+std::string content_type_for(const std::filesystem::path& path) {
+  const auto ext = path.extension().string();
+  if (ext == ".html") {
+    return "text/html; charset=utf-8";
+  }
+  if (ext == ".js") {
+    return "application/javascript; charset=utf-8";
+  }
+  if (ext == ".css") {
+    return "text/css; charset=utf-8";
+  }
+  if (ext == ".json") {
+    return "application/json; charset=utf-8";
+  }
+  if (ext == ".svg") {
+    return "image/svg+xml";
+  }
+  if (ext == ".png") {
+    return "image/png";
+  }
+  if (ext == ".ico") {
+    return "image/x-icon";
+  }
+  return "application/octet-stream";
+}
+
+bool serve_static_file(const std::filesystem::path& base, const std::string& rel, httplib::Response& res) {
+  const auto path = base / rel;
+  if (!std::filesystem::is_regular_file(path)) {
+    return false;
+  }
+  std::ifstream in(path, std::ios::binary);
+  if (!in) {
+    return false;
+  }
+  std::ostringstream ss;
+  ss << in.rdbuf();
+  res.set_content(ss.str(), content_type_for(path));
+  return true;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
   std::string words_path = "./data/words.json";
   std::string db_path = "./data/users.db";
+  std::string static_dir;
   int port = 8080;
   if (const char* env_words = std::getenv("WORDS_JSON")) {
     words_path = env_words;
@@ -80,6 +124,12 @@ int main(int argc, char** argv) {
   }
   if (const char* env_port = std::getenv("PORT")) {
     port = std::atoi(env_port);
+  }
+  if (const char* env_static = std::getenv("STATIC_DIR")) {
+    static_dir = env_static;
+  }
+  if (static_dir.empty()) {
+    static_dir = "/app/frontend/dist";
   }
   if (argc >= 2) {
     words_path = argv[1];
@@ -96,12 +146,14 @@ int main(int argc, char** argv) {
     std::cerr << "Failed to load words from: " << words_path << "\n";
     return 1;
   }
+  std::cout << "Loaded " << catalog.words().size() << " words from " << words_path << "\n";
 
   UserStore store(db_path);
   if (!store.open()) {
     std::cerr << "Failed to open database: " << db_path << "\n";
     return 1;
   }
+  std::cout << "Opened user database: " << db_path << "\n";
 
   httplib::Server svr;
 
@@ -242,6 +294,33 @@ int main(int argc, char** argv) {
     }
     res.set_content(out.dump(), "application/json");
   });
+
+  const std::filesystem::path static_path(static_dir);
+  if (!std::filesystem::is_directory(static_path)) {
+    std::cerr << "Warning: static dir not found: " << static_path << "\n";
+  } else {
+    const auto index_path = static_path / "index.html";
+    if (!std::filesystem::is_regular_file(index_path)) {
+      std::cerr << "Warning: index.html missing in static dir: " << static_path << "\n";
+    } else {
+      const auto serve_index = [static_path](const httplib::Request&, httplib::Response& res) {
+        if (!serve_static_file(static_path, "index.html", res)) {
+          res.status = 404;
+          res.set_content("index.html not found", "text/plain; charset=utf-8");
+        }
+      };
+      svr.Get("/", serve_index);
+      svr.Get("/index.html", serve_index);
+
+      const auto assets_path = static_path / "assets";
+      if (std::filesystem::is_directory(assets_path)) {
+        if (!svr.set_mount_point("/assets", assets_path.string())) {
+          std::cerr << "Warning: failed to mount assets dir: " << assets_path << "\n";
+        }
+      }
+      std::cout << "Serving static files from " << static_path << "\n";
+    }
+  }
 
   std::cout << "Listening on http://127.0.0.1:" << port << " words=" << words_path << " db=" << db_path
             << "\n";
