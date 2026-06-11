@@ -26,23 +26,88 @@ type QuizCheckResponse = {
   similarity: number;
   expected_hint?: string;
 };
+type AuthMeResponse = { username: string };
+type AuthSessionResponse = { token: string; username: string };
 
-const TOKEN_KEY = "hindiurdu_user_token";
+const SESSION_KEY = "hindiurdu_session";
+const ANON_TOKEN_KEY = "hindiurdu_anon_token";
+const LEGACY_TOKEN_KEY = "hindiurdu_user_token";
+const USERNAME_KEY = "hindiurdu_username";
 const QUIZ_HIDE_KEY = "hindiurdu_quiz_hidden";
+const API_TIMEOUT_MS = 45_000;
 
-function getOrCreateToken(): string {
-  let t = localStorage.getItem(TOKEN_KEY);
+function migrateLegacyToken() {
+  if (localStorage.getItem(ANON_TOKEN_KEY)) return;
+  const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
+  if (legacy) {
+    localStorage.setItem(ANON_TOKEN_KEY, legacy);
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+  }
+}
+
+function getOrCreateAnonToken(): string {
+  migrateLegacyToken();
+  let t = localStorage.getItem(ANON_TOKEN_KEY);
   if (!t) {
     t = crypto.randomUUID();
-    localStorage.setItem(TOKEN_KEY, t);
+    localStorage.setItem(ANON_TOKEN_KEY, t);
   }
   return t;
 }
 
+function getSessionToken(): string | null {
+  return localStorage.getItem(SESSION_KEY);
+}
+
+function apiHeaders(): Record<string, string> {
+  const session = getSessionToken();
+  if (session) {
+    return {
+      "X-User-Token": session,
+      "X-Anon-Token": getOrCreateAnonToken(),
+    };
+  }
+  return { "X-User-Token": getOrCreateAnonToken() };
+}
+
+function todayUtcLabel(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function friendlyFetchError(err: unknown): string {
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return "The server may be waking up. Wait a moment, then tap Retry.";
+  }
+  if (err instanceof TypeError) {
+    return "Could not reach the server. Check your connection and tap Retry.";
+  }
+  return err instanceof Error ? err.message : "Request failed.";
+}
+
+function authErrorMessage(status: number, body: string): string {
+  try {
+    const j = JSON.parse(body) as { error?: string };
+    if (j.error) return j.error;
+  } catch {
+    /* use fallback */
+  }
+  if (status === 409) return "That username is already taken.";
+  if (status === 401) return "Invalid username or password.";
+  return "Could not sign in. Try again.";
+}
+
+async function fetchWithTimeout(input: RequestInfo, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal, credentials: "include" });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, {
-    headers: { "X-User-Token": getOrCreateToken() },
-  });
+  const res = await fetchWithTimeout(path, { headers: apiHeaders() });
   if (!res.ok) {
     throw new Error(`${res.status} ${await res.text()}`);
   }
@@ -50,11 +115,11 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetchWithTimeout(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Token": getOrCreateToken(),
+      ...apiHeaders(),
     },
     body: JSON.stringify(body),
   });
@@ -65,6 +130,7 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 type ScriptMode = "hindi" | "roman" | "urdu";
+type AuthMode = "signin" | "signup";
 
 function nextScriptMode(m: ScriptMode): ScriptMode {
   if (m === "hindi") return "roman";
@@ -98,6 +164,7 @@ function mountApp() {
 
   let word: Word | null = null;
   let loadError: string | null = null;
+  let loading = true;
   let flipped = false;
   let scriptMode: ScriptMode = "hindi";
   let quizPrompt: QuizPrompt | null = null;
@@ -106,12 +173,24 @@ function mountApp() {
   let quizResult: QuizCheckResponse | null = null;
   let quizUiHidden = localStorage.getItem(QUIZ_HIDE_KEY) === "1";
   let knownCount = 0;
+  let signedInUsername: string | null = localStorage.getItem(USERNAME_KEY);
+  let authPanelOpen = false;
+  let authMode: AuthMode = "signin";
+  let authError: string | null = null;
 
   root.innerHTML = `
     <div class="page">
       <header>
         <h1>Hindi / Urdu word of the day</h1>
         <p>Flip the card for meaning and etymology. Tap the word to cycle Hindi → roman → Urdu.</p>
+        <div class="page-meta">
+          <p class="meta-line">
+            <time id="wotdDate" datetime=""></time>
+            <span class="meta-sep" aria-hidden="true">·</span>
+            <span id="knownMeta">0</span> marked known
+          </p>
+          <div class="auth-bar" id="authBar"></div>
+        </div>
       </header>
       <div id="banner"></div>
       <div class="scene" id="scene"></div>
@@ -132,6 +211,160 @@ function mountApp() {
   const quizBody = root.querySelector<HTMLDivElement>("#quizBody");
   const quizCollapsible = root.querySelector<HTMLDivElement>("#quizCollapsible");
   const btnToggleQuiz = root.querySelector<HTMLButtonElement>("#btnToggleQuiz");
+  const wotdDate = root.querySelector<HTMLTimeElement>("#wotdDate");
+  const knownMeta = root.querySelector<HTMLSpanElement>("#knownMeta");
+  const authBar = root.querySelector<HTMLDivElement>("#authBar");
+
+  function paintMeta() {
+    const label = todayUtcLabel();
+    if (wotdDate) {
+      wotdDate.dateTime = label;
+      wotdDate.textContent = label;
+    }
+    if (knownMeta) {
+      knownMeta.textContent = String(knownCount);
+    }
+  }
+
+  function paintAuthBar() {
+    if (!authBar) return;
+
+    if (signedInUsername) {
+      authBar.innerHTML = `
+        <div class="auth-signed-in">
+          <span class="auth-greeting">Signed in as <strong>${escapeHtml(signedInUsername)}</strong></span>
+          <button type="button" id="btnClearProgress" class="secondary meta-btn">Clear progress</button>
+          <button type="button" id="btnSignOut" class="secondary meta-btn">Sign out</button>
+        </div>
+      `;
+      authBar.querySelector("#btnSignOut")?.addEventListener("click", () => {
+        void signOut();
+      });
+      authBar.querySelector("#btnClearProgress")?.addEventListener("click", () => {
+        if (!window.confirm("Clear all words you marked as known? This cannot be undone.")) return;
+        void clearProgress();
+      });
+      return;
+    }
+
+    authBar.innerHTML = `
+      <button type="button" id="btnSaveProgress" class="meta-btn">Save progress</button>
+      ${
+        authPanelOpen
+          ? `
+        <div class="auth-panel" role="region" aria-label="Sign in or create account">
+          <div class="auth-tabs">
+            <button type="button" class="auth-tab ${authMode === "signin" ? "is-active" : ""}" data-mode="signin">Sign in</button>
+            <button type="button" class="auth-tab ${authMode === "signup" ? "is-active" : ""}" data-mode="signup">Create account</button>
+          </div>
+          <form class="auth-form" id="authForm">
+            <label class="auth-label">
+              Username
+              <input class="auth-field" id="authUsername" type="text" autocomplete="username" placeholder="letters, numbers, underscore" required minlength="3" maxlength="24" pattern="[a-z0-9_]+" />
+            </label>
+            <label class="auth-label">
+              Password
+              <input class="auth-field" id="authPassword" type="password" autocomplete="${authMode === "signup" ? "new-password" : "current-password"}" placeholder="at least 6 characters" required minlength="6" />
+            </label>
+            ${authError ? `<p class="auth-error" role="alert">${escapeHtml(authError)}</p>` : ""}
+            <button type="submit" class="auth-submit">${authMode === "signup" ? "Create account" : "Sign in"}</button>
+          </form>
+        </div>
+      `
+          : ""
+      }
+    `;
+
+    authBar.querySelector("#btnSaveProgress")?.addEventListener("click", () => {
+      authPanelOpen = !authPanelOpen;
+      authError = null;
+      paintAuthBar();
+    });
+
+    authBar.querySelectorAll<HTMLButtonElement>(".auth-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        authMode = tab.dataset.mode === "signup" ? "signup" : "signin";
+        authError = null;
+        paintAuthBar();
+      });
+    });
+
+    authBar.querySelector("#authForm")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void submitAuth();
+    });
+  }
+
+  async function submitAuth() {
+    const username = authBar?.querySelector<HTMLInputElement>("#authUsername")?.value.trim() ?? "";
+    const password = authBar?.querySelector<HTMLInputElement>("#authPassword")?.value ?? "";
+    authError = null;
+    const path = authMode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+    try {
+      const res = await fetchWithTimeout(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...apiHeaders() },
+        body: JSON.stringify({ username, password, anon_token: getOrCreateAnonToken() }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        authError = authErrorMessage(res.status, text);
+        paintAuthBar();
+        return;
+      }
+      const data = JSON.parse(text) as AuthSessionResponse;
+      localStorage.setItem(SESSION_KEY, data.token);
+      localStorage.setItem(USERNAME_KEY, data.username);
+      signedInUsername = data.username;
+      authPanelOpen = false;
+      authError = null;
+      paintAuthBar();
+      await loadAll();
+    } catch (err) {
+      authError = friendlyFetchError(err);
+      paintAuthBar();
+    }
+  }
+
+  async function signOut() {
+    try {
+      await apiPost("/api/auth/logout", {});
+    } catch {
+      /* clear local session anyway */
+    }
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(USERNAME_KEY);
+    signedInUsername = null;
+    authPanelOpen = false;
+    paintAuthBar();
+    await loadAll();
+  }
+
+  async function clearProgress() {
+    try {
+      await apiPost("/api/auth/clear-progress", {});
+      await loadAll();
+    } catch (err) {
+      loadError = friendlyFetchError(err);
+      paintBanner();
+    }
+  }
+
+  async function restoreSession() {
+    if (!getSessionToken()) {
+      signedInUsername = null;
+      return;
+    }
+    try {
+      const me = await apiGet<AuthMeResponse>("/api/auth/me");
+      signedInUsername = me.username;
+      localStorage.setItem(USERNAME_KEY, me.username);
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+      signedInUsername = null;
+    }
+  }
 
   function applyQuizVisibility() {
     if (quizCollapsible) {
@@ -156,20 +389,40 @@ function mountApp() {
 
   function paintBanner() {
     if (!banner) return;
-    banner.innerHTML = loadError ? `<div class="error-banner" role="alert">${escapeHtml(loadError)}</div>` : "";
+    if (!loadError) {
+      banner.innerHTML = "";
+      return;
+    }
+    banner.innerHTML = `
+      <div class="error-banner" role="alert">
+        <p>${escapeHtml(loadError)}</p>
+        <button type="button" id="btnRetry" class="secondary">Retry</button>
+      </div>
+    `;
+    banner.querySelector("#btnRetry")?.addEventListener("click", () => {
+      void loadAll();
+    });
   }
 
   function paintScene() {
     if (!scene) return;
+    if (loading) {
+      scene.innerHTML = `<p class="loading-state" role="status">Loading word of the day…</p>`;
+      return;
+    }
     if (!word) {
-      scene.innerHTML = `<p class="empty-state">No word available. Clear site data to reset known words, or expand the catalog.</p>`;
+      scene.innerHTML = `<p class="empty-state">${
+        loadError
+          ? "Could not load today’s word."
+          : "No word available. Mark fewer words as known, or expand the catalog."
+      }</p>`;
       return;
     }
     scene.innerHTML = `
       <div class="card" id="flipCard" aria-label="Word card. Tap away from the word to flip.">
         <div class="card-inner ${flipped ? "is-flipped" : ""}" id="cardInner">
           <div class="card-face card-front">
-            <span class="known-counter" aria-label="Words you marked as known">${knownCount}</span>
+            <span class="known-counter" aria-hidden="true">${knownCount}</span>
             <p class="hint">Tap outside the word on the card to flip it over.</p>
             <div class="card-hero">
               <div class="pronunciation">${escapeHtml(word.pronunciation)}</div>
@@ -182,7 +435,7 @@ function mountApp() {
             </div>
           </div>
           <div class="card-face card-back">
-            <span class="known-counter" aria-label="Words you marked as known">${knownCount}</span>
+            <span class="known-counter" aria-hidden="true">${knownCount}</span>
             <p class="hint">Tap the card to flip back.</p>
             <div class="back-block">
               <h2>Meaning</h2>
@@ -233,12 +486,13 @@ function mountApp() {
         await refreshWord();
         flipped = false;
         scriptMode = "hindi";
+        paintMeta();
         paintBanner();
         paintScene();
         await ensureQuizIfStillEmpty();
         paintQuiz();
       } catch (err) {
-        loadError = err instanceof Error ? err.message : "Could not save.";
+        loadError = friendlyFetchError(err);
         paintBanner();
       }
     });
@@ -246,12 +500,24 @@ function mountApp() {
 
   function paintQuiz() {
     if (!quizBody) return;
+    if (loading) {
+      quizBody.innerHTML = `<p class="loading-state" role="status">Loading quiz…</p>`;
+      return;
+    }
+    if (!signedInUsername && knownCount === 0 && !quizPrompt) {
+      quizBody.innerHTML = `<p class="status">Mark at least one word as known on the card above to unlock the quiz. Create an account to save progress across visits.</p>`;
+      return;
+    }
+    if (knownCount === 0 && !quizPrompt) {
+      quizBody.innerHTML = `<p class="status">Mark at least one word as known on the card above to unlock the quiz.</p>`;
+      return;
+    }
     if (quizMessage && !quizPrompt) {
       quizBody.innerHTML = `<p class="status">${escapeHtml(quizMessage)}</p>`;
       return;
     }
     if (!quizPrompt) {
-      quizBody.innerHTML = `<p class="status">Mark at least one word as known, then refresh the page to get a quiz word.</p>`;
+      quizBody.innerHTML = `<p class="status">No quiz word right now. Refresh after marking more words known.</p>`;
       return;
     }
 
@@ -292,7 +558,7 @@ function mountApp() {
         quizResult = {
           correct: false,
           similarity: 0,
-          expected_hint: err instanceof Error ? err.message : "Error",
+          expected_hint: friendlyFetchError(err),
         };
       }
       paintQuizOutcome();
@@ -320,6 +586,15 @@ function mountApp() {
     `;
   }
 
+  function paintAll() {
+    paintMeta();
+    paintAuthBar();
+    paintBanner();
+    paintScene();
+    paintQuiz();
+    applyQuizVisibility();
+  }
+
   async function refreshWord() {
     const data = await apiGet<WordOfDayResponse>("/api/word-of-day");
     word = data.word;
@@ -335,11 +610,10 @@ function mountApp() {
       quizMessage = data.message ?? null;
     } catch (err) {
       quizPrompt = null;
-      quizMessage = err instanceof Error ? err.message : "Quiz failed.";
+      quizMessage = friendlyFetchError(err);
     }
   }
 
-  /** If the page loaded with no known words, pick a quiz once after the first “I know this”. */
   async function ensureQuizIfStillEmpty() {
     if (quizPrompt !== null) {
       return;
@@ -350,17 +624,27 @@ function mountApp() {
     }
   }
 
-  (async () => {
+  async function loadAll() {
+    loading = true;
+    loadError = null;
+    paintAll();
     try {
       await refreshWord();
       await loadQuiz();
     } catch (err) {
-      loadError = err instanceof Error ? err.message : "Failed to load.";
+      word = null;
+      loadError = friendlyFetchError(err);
+    } finally {
+      loading = false;
+      paintAll();
     }
-    paintBanner();
-    paintScene();
-    paintQuiz();
-    applyQuizVisibility();
+  }
+
+  (async () => {
+    paintAuthBar();
+    await restoreSession();
+    paintAuthBar();
+    await loadAll();
   })();
 }
 

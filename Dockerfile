@@ -7,7 +7,7 @@ RUN npm run build
 
 FROM debian:bookworm-slim AS backend-build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake pkg-config libsqlite3-dev ca-certificates git \
+    build-essential cmake pkg-config libsqlite3-dev libssl-dev ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
 COPY backend/ ./
@@ -18,7 +18,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBUILD_T
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlite3-0 ca-certificates \
+    libsqlite3-0 libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=backend-build /app/backend/build/hindiurdu_server /app/hindiurdu_server

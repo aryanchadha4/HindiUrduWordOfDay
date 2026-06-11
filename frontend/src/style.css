@@ -43,6 +43,143 @@ header p {
   max-width: 40em;
 }
 
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1rem;
+  margin-top: 1rem;
+}
+
+.auth-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+  flex: 1 1 16rem;
+  max-width: 100%;
+}
+
+.auth-signed-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.65rem;
+}
+
+.auth-greeting {
+  font-size: clamp(0.9rem, 1.9vw, 1rem);
+  color: var(--muted);
+}
+
+.auth-greeting strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.auth-panel {
+  width: min(100%, 22rem);
+  background: var(--card);
+  border: 1px solid rgba(42, 34, 24, 0.12);
+  border-radius: var(--card-radius);
+  padding: clamp(0.85rem, 2vw, 1.1rem);
+  box-shadow: 0 12px 28px rgba(42, 34, 24, 0.12);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.auth-tab {
+  flex: 1;
+  min-height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: clamp(0.88rem, 1.8vw, 0.98rem);
+  cursor: pointer;
+}
+
+.auth-tab.is-active {
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--accent);
+  border: 1px solid rgba(107, 63, 42, 0.25);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: clamp(0.85rem, 1.7vw, 0.95rem);
+  color: var(--muted);
+}
+
+.auth-field {
+  border-radius: 12px;
+  border: 1px solid rgba(42, 34, 24, 0.22);
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  background: rgba(255, 254, 245, 0.92);
+  color: var(--ink);
+  min-height: 44px;
+}
+
+.auth-field:focus {
+  outline: 2px solid rgba(107, 63, 42, 0.35);
+  outline-offset: 1px;
+}
+
+.auth-submit {
+  margin-top: 0.15rem;
+  width: 100%;
+}
+
+.auth-error {
+  margin: 0;
+  font-size: clamp(0.85rem, 1.8vw, 0.95rem);
+  color: #7a2b1f;
+  background: rgba(122, 43, 31, 0.1);
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+}
+
+.meta-line {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.9vw, 1rem);
+  color: var(--muted);
+}
+
+.meta-sep {
+  margin: 0 0.35rem;
+}
+
+.meta-btn {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+}
+
+.loading-state {
+  margin: 0 auto;
+  text-align: center;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2vw, 1.05rem);
+  max-width: 28em;
+  padding: 3rem 1rem;
+}
+
 .scene {
   perspective: 1400px;
   margin: 2rem auto 2.25rem;
@@ -72,6 +209,7 @@ header p {
 }
 
 .card-face {
+  position: relative;
   /* Grid stack so row height follows content; absolute inset kept the inner at min-height only. */
   grid-area: 1 / 1;
   width: 100%;
@@ -191,6 +329,7 @@ button {
   border: 1px solid rgba(107, 63, 42, 0.35);
   background: rgba(255, 255, 255, 0.55);
   color: var(--accent);
+  min-height: 44px;
   padding: clamp(0.6rem, 1.5vw, 0.75rem) clamp(1rem, 2.5vw, 1.35rem);
   cursor: pointer;
 }
@@ -315,4 +454,14 @@ button:disabled {
   background: rgba(122, 43, 31, 0.12);
   color: #4a1f18;
   border: 1px solid rgba(122, 43, 31, 0.25);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.error-banner p {
+  margin: 0;
+  flex: 1 1 12rem;
 }

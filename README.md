@@ -34,10 +34,23 @@ You can also pass arguments explicitly:
 Endpoints:
 
 - `GET /api/health` — liveness JSON.
-- `GET /api/word-of-day?date=YYYY-MM-DD` — deterministic word for the date, skipping words marked known for the `X-User-Token` header.
-- `POST /api/known` with JSON `{ "word_id": "..." }` — persist a known word for that token.
+- `POST /api/auth/signup` — `{ "username", "password", "anon_token"? }` → `{ "token", "username" }` + session cookie.
+- `POST /api/auth/login` — same body/response as signup.
+- `POST /api/auth/logout` — clears session.
+- `GET /api/auth/me` — `{ "username" }` for the current session.
+- `POST /api/auth/clear-progress` — deletes known words for the signed-in account.
+- `GET /api/word-of-day?date=YYYY-MM-DD` — deterministic word for the date, skipping words marked known for the caller.
+- `POST /api/known` with JSON `{ "word_id": "..." }` — persist a known word.
 - `GET /api/quiz` — random prompt from known words (meanings omitted).
 - `POST /api/quiz/check` with `{ "word_id": "...", "answer": "..." }` — fuzzy match against the English gloss.
+
+Send `X-User-Token` with either a **session token** (after sign-in) or an anonymous browser id. Optional `X-Anon-Token` merges anonymous progress into the account on signup/login.
+
+### Accounts in the UI
+
+Use **Save progress** in the header to create an account or sign in. Usernames are lowercase letters, digits, and underscore (3–24 chars); passwords are at least 6 characters. Progress is stored per account in SQLite (`USER_DB`).
+
+On Render **Free**, the database file is ephemeral — sign in again after a redeploy may show zero until you attach a **Starter persistent disk** at `/data` (see Deploy section).
 
 ## Frontend (Vite)
 
@@ -103,7 +116,7 @@ Open `https://<your-service>.onrender.com` in a browser.
 ### Free tier behavior
 
 - Services **spin down after ~15 minutes** of no traffic. The first visit may take 30–60 seconds; the UI shows a loading state and **Retry** if needed.
-- The filesystem is **ephemeral** on Free: “known word” progress may reset on redeploy or restart. Upgrade to **Starter** and attach a persistent disk (see below) to keep progress.
+- The filesystem is **ephemeral** on Free: accounts and known-word rows in `users.db` are lost on redeploy or restart. **Create an account** so you can sign back in on any device, but for counts to survive server restarts upgrade to **Starter** and attach a persistent disk (see below).
 
 ### Persistent data (Starter plan)
 

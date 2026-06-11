@@ -32,18 +32,20 @@ if(BUILD_TESTING)
 endif()
 
 find_package(SQLite3 REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 add_executable(hindiurdu_server
   src/main.cpp
   src/catalog.cpp
   src/db.cpp
+  src/auth.cpp
   src/fuzzy.cpp
 )
 target_include_directories(hindiurdu_server PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/src"
   "${httplib_SOURCE_DIR}"
 )
-target_link_libraries(hindiurdu_server PRIVATE nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(hindiurdu_server PRIVATE nlohmann_json::nlohmann_json SQLite::SQLite3 OpenSSL::Crypto)
 
 if(BUILD_TOOLS)
   add_executable(merge_word_catalog tools/merge_word_catalog.cpp)
